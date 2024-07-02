@@ -19,7 +19,7 @@
 
         <label for="country_code">Country Code:</label>
         <select name="caller[countryCode]" id="country_code" required>
-            <option value="">select country code</option>
+            <!-- <option value="">select country code</option>
             <option value="93">+93 Afghanistan</option>
             <option value="355">+355 Albania</option>
             <option value="213">+213 Algeria</option>
@@ -261,7 +261,7 @@
             <option value="212">+212 Western Sahara</option>
             <option value="967">+967 Yemen</option>
             <option value="260">+260 Zambia</option>
-            <option value="263">+263 Zimbabwe</option>
+            <option value="263">+263 Zimbabwe</option> -->
         </select>
 
 
@@ -300,9 +300,11 @@
             <option value="blocked">Blocked</option>
         </select><br> -->
 
-        <button type="submit">Create Caller</button>
+        <button  type="submit">Create Caller</button>
     </form>
+    <script type="text/html" src="/script.js"></script>      
     <script>
+
         let inp = document.getElementById("username");
         inp.addEventListener("input", (e) => {
             if (inp.value.charAt(inp.value.length -1) >= 'A' && inp.value.charAt(inp.value.length -1) <= 'Z'){
@@ -313,3 +315,5 @@
     </script>
 </body>
 </html>
+
+ 
