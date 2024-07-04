@@ -12,16 +12,16 @@ const bodyParser = require("body-parser");
 const Caller = require("./models/caller.js");
 const Receiver = require("./models/receiver.js");
 const OTP = require("./models/otp.js");
-// const { validateCaller, validateReceiver } = require("./middleware.js");
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
-const multer = require("multer");
-const { storage } = require("./cloudConfig.js");
-const upload = multer({ storage });
+// const multer = require("multer");
+// const { storage } = require("./cloudConfig.js");
+// const upload = multer({ storage });
 const transporter = require('./emailConfig');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
+const { callerSchema, receiverSchema } = require("./schemaValidation");
 
 let MONGO_URL = "mongodb://127.0.0.1:27017/testing";
 
@@ -39,6 +39,7 @@ app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
 const { validateCaller, validateReceiver } = require("./middleware.js");
+
 // Add moment.js for handling time
 const moment = require("moment");
 
@@ -64,22 +65,51 @@ passport.use(new LocalStrategy(Caller.authenticate()));
 passport.serializeUser(Caller.serializeUser());
 passport.deserializeUser(Caller.deserializeUser());
 
-let temp = {};
+// let temp = {};
 
-const storeData = (req,res,next) => {
-   temp = req.body;
-    next();
-}
-app.get("/listen", async (req, res) => {
+// const storeData = (req,res,next) => {
+//    temp = req.body;
+//     next();
+// }
+
+// Index Route
+app.get("/listen/index", async (req, res) => {
     res.render("index.ejs");
 });
 
-app.get("/callerForm", (req, res) => {
+// SignUp as a Caller
+app.get("/listen/index/callerForm", (req, res) => {
     res.render("caller.ejs");
 });
 
-app.post('/submitCall',upload.none(), validateCaller,storeData, async (req, res) => {
+// SingUp as a Receiver
+app.get("/listen/index/receiverForm", (req, res) => {
+    res.render("receiver.ejs");
+});
+
+// Login as a Caller or Receiver
+app.get("/listen/index/Login", (req, res) => {
+    res.render("Login.ejs");
+});
+
+// Authentication of Username and Password as Caller or Receiver
+app.post("/listen/index/Login", passport.authenticate("local", {
+    failureRedirect: "/",
+    failureFlash: false,
+}), (req, res) => {
+    res.redirect("/home");
+});
+
+app.get("/listen/index/verifyEmail", (req, res) => {
+    res.render("verifyEmail.ejs"); //, { email: temp.caller.email }
+});
+
+
+app.post('/listen/index/submitCall', validateCaller, async (req, res) => {  // upload.none(), storeData,
+    console.log("request is coming");
     let newCaller = new Caller(req.body.caller);
+    console.log(newCaller);
+
 
     try {
         // Send OTP
@@ -94,24 +124,24 @@ app.post('/submitCall',upload.none(), validateCaller,storeData, async (req, res)
         };
 
         transporter.sendMail(mailOptions,async (error, info) => {
+            console.log(error);
+            console.log(info);
             if (error) {
                 console.log(error);
                 return res.status(500).send("Error sending email: " + error.message);
             }
             
-            res.redirect("/verifyEmail");
+            res.redirect("/listen/index/verifyEmail");
         });
         console.log("registered Successfully");
     } catch (error) {
         res.status(500).send("Error saving caller: " + error.message);
     }
+    
 });
 
-app.get("/verifyEmail", (req, res) => {
-    res.render("verifyEmail.ejs", { email: temp.caller.email });
-});
 
-app.post("/verifyEmail", async (req, res) => {
+app.post("/listen/index/verifyEmail", async (req, res) => {
     const { email, otp } = req.body;
     const otpRecord = await OTP.findOne({ email, otp });
 
@@ -128,12 +158,7 @@ app.post("/verifyEmail", async (req, res) => {
     }
 });
 
-
-app.get("/receiverForm", (req, res) => {
-    res.render("receiver.ejs");
-});
-
-app.post('/submitRec',upload.none(), validateReceiver,storeData, async (req, res) => {
+app.post('/submitRec', validateReceiver, async (req, res) => {  // upload.none(), storeData,
     let newReceiver = new Receiver(req.body.receiver);
 
     try {
@@ -219,28 +244,6 @@ app.post("/resendOtp", async (req, res) => {
     }
 });
 
-
-app.get("/callerLogin", (req, res) => {
-    res.render("callerLogin.ejs");
-});
-
-app.get("/receiverLogin", (req, res) => {
-    res.render("receiverLogin.ejs");
-});
-
-app.post("/callerLogin", passport.authenticate("local", {
-    failureRedirect: "/",
-    failureFlash: false,
-}), (req, res) => {
-    res.redirect("/home");
-});
-
-app.post("/receiverLogin", passport.authenticate("local", {
-    failureRedirect: "/",
-    failureFlash: false,
-}), (req, res) => {
-    res.redirect("/home");
-});
 
 // Route to render the password reset request form
 app.get('/forgotPassword', (req, res) => {
@@ -341,7 +344,9 @@ app.post('/reset/:token', async (req, res) => {
     });
 });
 
-
+app.get("/listen", (req,res) => {
+    res.send("Please go route /listen/index");
+});
 
 app.get("/", (req, res) => {
     res.send("Wrong Password");
@@ -354,31 +359,6 @@ app.get("/home", (req, res) => {
 app.listen(8080, () => {
     console.log("app is listening to port 8080");
 });
-
-const { callerSchema, receiverSchema } = require("./schemaValidation");
-
-module.exports.validateCaller = (req, res, next) => {
-    let { error } = callerSchema.validate(req.body);
-    if (error) {
-        let errMsg = error.details.map((el) => el.message).join(",");
-        console.log(errMsg);
-        return res.status(400).send(errMsg); // Send a response with the error message
-    } else {
-        next();
-    }
-};
-
-module.exports.validateReceiver = (req, res, next) => {
-    let { error } = receiverSchema.validate(req.body);
-    if (error) {
-        let errMsg = error.details.map((el) => el.message).join(",");
-        console.log(errMsg);
-        return res.status(400).send(errMsg); // Send a response with the error message
-    } else {
-        next();
-    }
-};
-
 
 app.use((err,req,res,next)=> {
     let {statusCode = 500, message= "Something Went Wrong !"} = err;

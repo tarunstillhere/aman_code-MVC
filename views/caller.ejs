@@ -7,7 +7,7 @@
 </head>
 <body>
     <h1>Create New Caller</h1>
-    <form action="/submitCall" method="POST" enctype="multipart/form-data">
+    <form action="/listen/index/submitCall" method="post" >
         <label for="username">Username:</label>
         <input type="text" id="username" placeholder="small letters only" name="caller[username]" required><br>
 
@@ -47,17 +47,7 @@
         <label for="language">Language:</label>
         <input type="text" id="language" name="caller[language]"><br>
 
-        <!-- <label for="status">Status:</label>
-        <select id="status" name="caller[status]">
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="in-call">In-call</option>
-            <option value="busy">Busy</option>
-            <option value="offline" selected>Offline</option>
-            <option value="blocked">Blocked</option>
-        </select><br> -->
-
-        <button  type="submit">Create Caller</button>
+        <button type="submit">Create Caller</button>
     </form>
     <script>
 
