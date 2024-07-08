@@ -2,6 +2,7 @@ const { object, string, required, boolean } = require("joi");
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const passportLocalMongoose = require("passport-local-mongoose");
+const bcrypt = require('bcrypt');
 
 const receiverSchema = new Schema({
     username: {
@@ -49,15 +50,32 @@ const receiverSchema = new Schema({
     default: Date.now,
   },
   language: [String],
-  // status: {
-  //   type: String,
-  //   enum: ["active", "inactive", "in-call", "busy", "offline", "blocked"],
-  //   default: "offline",
-  // },
 }); 
 
 
 receiverSchema.plugin(passportLocalMongoose);
+
+receiverSchema.methods.comparePassword = function(candidatePassword, callback) {
+  bcrypt.compare(candidatePassword, this.password, function(err, isMatch) {
+      if (err) return callback(err);
+      callback(null, isMatch);
+  });
+};
+
+receiverSchema.methods.comparePassword = function(candidatePassword, callback) {
+  console.log("Candidate Password: ", candidatePassword);
+  console.log("Stored Password: ", this.password);
+
+  if (!candidatePassword || !this.password) {
+      return callback(new Error("data and hash arguments required"));
+  }
+
+  bcrypt.compare(candidatePassword, this.password, function(err, isMatch) {
+      if (err) return callback(err);
+      (null, isMatch);
+  });
+};
+
 
 const Receiver = mongoose.model("Receiver", receiverSchema);
 

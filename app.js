@@ -1,12 +1,8 @@
-if (process.env.NODE_ENV != "production") {
-    require("dotenv").config();
-}
-require('dotenv').config();
-
 const express = require("express");
 const app = express();
 const mongoose = require('mongoose');
-const session = require("express-session");
+const session = require('express-session');
+const flash = require('connect-flash');
 const path = require("path");
 const bodyParser = require("body-parser");
 const Caller = require("./models/caller.js");
@@ -15,7 +11,7 @@ const OTP = require("./models/otp.js");
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
 // const multer = require("multer");
-// const { storage } = require("./cloudConfig.js");
+// const { storage } = require("./cloudConfig.js");  // Image Purpose
 // const upload = multer({ storage });
 const transporter = require('./emailConfig');
 const { v4: uuidv4 } = require('uuid');
@@ -58,19 +54,54 @@ app.use(session(sessionOptions));
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.use(session(sessionOptions));
 app.use(passport.initialize());
 app.use(passport.session());
-passport.use(new LocalStrategy(Caller.authenticate()));
+passport.use(new LocalStrategy(async (username, password, done) => {
+    try {
+        console.log('Authenticating user:', username);
+        let user = await Caller.findOne({ username }) || await Receiver.findOne({ username });
+        
+        if (!user) {
+            console.log('User not found');
+            return done(null, false, { message: 'Incorrect username.' });
+        }
 
-passport.serializeUser(Caller.serializeUser());
-passport.deserializeUser(Caller.deserializeUser());
+        const isMatch = await user.comparePassword(password);
+        console.log(isMatch);
+        if (!isMatch) {
+            console.log('Incorrect password');
+            return done(null, false, { message: 'Incorrect password.' });
+        }
 
-// let temp = {};
+        console.log('User authenticated successfully:', username);
+        return done(null, user);
+    } catch (err) {
+        console.error('Error during authentication:', err);
+        return done(err);
+    }
+}));
 
-// const storeData = (req,res,next) => {
-//    temp = req.body;
-//     next();
-// }
+passport.serializeUser((user, done) => {
+    done(null, user.id);
+});
+
+passport.deserializeUser(async (id, done) => {
+    let user = await Caller.findById(id) || await Receiver.findById(id);
+    done(null, user);
+});
+
+let temp = {};
+
+
+const storeData = (req,res,next) => {
+   temp = req.body;
+    next();
+}
+  
+  // Set up connect-flash
+app.use(flash());
+
 
 // Index Route
 app.get("/listen/index", async (req, res) => {
@@ -87,29 +118,42 @@ app.get("/listen/index/receiverForm", (req, res) => {
     res.render("receiver.ejs");
 });
 
-// Login as a Caller or Receiver
+// Login Route
 app.get("/listen/index/Login", (req, res) => {
-    res.render("Login.ejs");
+    res.render("Login.ejs", { message: req.flash('error') });
 });
 
 // Authentication of Username and Password as Caller or Receiver
 app.post("/listen/index/Login", passport.authenticate("local", {
-    failureRedirect: "/",
-    failureFlash: false,
+    failureRedirect: "/listen/index/Login",
+    failureFlash: true,
 }), (req, res) => {
+    console.log(data);
+    console.log('Redirecting to /home');
     res.redirect("/home");
 });
 
-app.get("/listen/index/verifyEmail", (req, res) => {
-    res.render("verifyEmail.ejs"); //, { email: temp.caller.email }
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).send('Something went wrong!');
 });
 
+// Verify Caller Email
 
-app.post('/listen/index/submitCall', validateCaller, async (req, res) => {  // upload.none(), storeData,
-    console.log("request is coming");
+app.get("/listen/index/verifyEmailCaller", (req, res) => {
+    res.render("verifyEmailCaller.ejs", { email: req.session.email }); 
+});
+
+// Verify Receiver Email
+
+app.get("/listen/index/verifyEmailReceiver", (req, res) => {
+    res.render("verifyEmailReceiver.ejs", { email: req.session.email }); 
+});
+
+// Submit Caller
+app.post('/listen/index/submitCall', validateCaller, async (req, res) => {
     let newCaller = new Caller(req.body.caller);
     console.log(newCaller);
-
 
     try {
         // Send OTP
@@ -123,42 +167,51 @@ app.post('/listen/index/submitCall', validateCaller, async (req, res) => {  // u
             text: `Your verification code is ${otp}`
         };
 
-        transporter.sendMail(mailOptions,async (error, info) => {
-            console.log(error);
-            console.log(info);
+        transporter.sendMail(mailOptions, (error, info) => {
             if (error) {
-                console.log(error);
+                console.error("Error sending email:", error);
                 return res.status(500).send("Error sending email: " + error.message);
             }
-            
-            res.redirect("/listen/index/verifyEmail");
+
+            console.log("Email sent:", info.response);
+            req.session.email = req.body.caller.email;
+            req.session.tempCaller = req.body.caller; // Store caller data in session
+            return res.redirect("/listen/index/verifyEmailCaller");
         });
-        console.log("registered Successfully");
+
+        console.log("Registered successfully");
     } catch (error) {
+        console.error("Error saving caller:", error);
         res.status(500).send("Error saving caller: " + error.message);
     }
-    
 });
 
 
-app.post("/listen/index/verifyEmail", async (req, res) => {
+// Verify Caller Email
+app.post("/listen/index/verifyEmailCaller", async (req, res) => {
     const { email, otp } = req.body;
     const otpRecord = await OTP.findOne({ email, otp });
 
     if (otpRecord && moment().isBefore(moment(otpRecord.createdAt).add(5, 'minutes'))) {
         // OTP is valid and not expired
         await OTP.deleteOne({ email, otp }); // Remove the used OTP
-        let user = temp;
-        temp = {};
-        let registeredCaller = await Caller.register(user.caller, user.caller.password);
-        res.send("Email verified successfully!");
+        let user = req.session.tempCaller; // Retrieve caller data from session
+        req.session.tempCaller = null; // Clear the session variable
+        if (user && user.password) {
+            let registeredCaller = await Caller.register(user, user.password);
+            res.send("Email verified successfully!");
+        } else {
+            res.status(500).send("Caller data is missing or incomplete.");
+        }
     } else {
         // OTP is invalid or expired
         res.status(400).send("Invalid or expired OTP");
     }
 });
 
-app.post('/submitRec', validateReceiver, async (req, res) => {  // upload.none(), storeData,
+
+// Submit Receiver
+app.post('/listen/index/submitRec', validateReceiver, async (req, res) => {
     let newReceiver = new Receiver(req.body.receiver);
 
     try {
@@ -173,35 +226,41 @@ app.post('/submitRec', validateReceiver, async (req, res) => {  // upload.none()
             text: `Your verification code is ${otp}`
         };
 
-        transporter.sendMail(mailOptions,async (error, info) => {
+        transporter.sendMail(mailOptions, (error, info) => {
             if (error) {
-                console.log(error);
+                console.error("Error sending email:", error);
                 return res.status(500).send("Error sending email: " + error.message);
             }
-            
-            res.redirect("/verifyEmail");
+
+            console.log("Email sent:", info.response);
+            req.session.email = req.body.receiver.email;
+            req.session.tempReceiver = req.body.receiver; // Store receiver data in session
+            return res.redirect("/listen/index/verifyEmailReceiver");
         });
-        console.log("registered Successfully");
+
+        console.log("Registered successfully");
     } catch (error) {
+        console.error("Error saving receiver:", error);
         res.status(500).send("Error saving receiver: " + error.message);
     }
 });
 
-app.get("/verifyEmail", (req, res) => {
-    res.render("verifyEmail.ejs", { email: temp.receiver.email });
-});
-
-app.post("/verifyEmail", async (req, res) => {
+// Verify Receiver Email
+app.post("/listen/index/verifyEmailReceiver", async (req, res) => {
     const { email, otp } = req.body;
     const otpRecord = await OTP.findOne({ email, otp });
 
     if (otpRecord && moment().isBefore(moment(otpRecord.createdAt).add(5, 'minutes'))) {
         // OTP is valid and not expired
         await OTP.deleteOne({ email, otp }); // Remove the used OTP
-        let user = temp;
-        temp = {};
-        let registeredReceiver = await Caller.register(user.receiver, user.receiver.password);
-        res.send("Email verified successfully!");
+        let user = req.session.tempReceiver; // Retrieve receiver data from session
+        req.session.tempReceiver = null; // Clear the session variable
+        if (user && user.password) {
+            let registeredReceiver = await Receiver.register(user, user.password);
+            res.send("Email verified successfully!");
+        } else {
+            res.status(500).send("Receiver data is missing or incomplete.");
+        }
     } else {
         // OTP is invalid or expired
         res.status(400).send("Invalid or expired OTP");
@@ -210,7 +269,6 @@ app.post("/verifyEmail", async (req, res) => {
 
 
 // Add a new route for resending OTP
-
 app.post("/resendOtp", async (req, res) => {
     const { email } = req.body;
     try {
@@ -250,6 +308,7 @@ app.get('/forgotPassword', (req, res) => {
     res.render('forgotPassword.ejs');
 });
 
+
 // Route to handle the password reset request
 app.post('/forgotPassword', async (req, res) => {
     const { email } = req.body;
@@ -281,13 +340,12 @@ app.post('/forgotPassword', async (req, res) => {
     transporter.sendMail(mailOptions, (err, response) => {
         if (err) {
             console.error('There was an error: ', err);
+            return res.status(500).send('Error sending email: ' + err.message);
         } else {
             res.status(200).send('Recovery email sent');
         }
     });
 });
-
-
 
 // Route to render the password reset form
 app.get('/reset/:token', async (req, res) => {
@@ -339,22 +397,22 @@ app.post('/reset/:token', async (req, res) => {
             if (err) {
                 return next(err);
             }
-            res.redirect('/callerLogin');
+            res.redirect('/listen/index/Login');
         });
     });
 });
 
-app.get("/listen", (req,res) => {
-    res.send("Please go route /listen/index");
+app.get("/", (req,res) => {
+    res.send("Welcome to Listen.com ! Please go to the route /listen/index");
 });
 
-app.get("/", (req, res) => {
-    res.send("Wrong Password");
+app.get("/home", (req,res) => {
+    res.send("Welcome to Listen.com !");
 });
 
-app.get("/home", (req, res) => {
-    res.send("Welcome to Listen.com");
-});
+// app.get("/wrongPassword", (req, res) => {
+//     res.send("Wrong Password");
+// });
 
 app.listen(8080, () => {
     console.log("app is listening to port 8080");

@@ -6,7 +6,10 @@
     <title>Login</title>
 </head>
 <body>
-    <form action="/listen/index/Login" method="POST">
+    <% if (message.length > 0) { %>
+        <p style="color: red;"><%= message %></p>
+    <% } %>
+    <form action="/listen/index/Login" method="post">
         <label for="username">Username:</label>
         <input type="text" id="username" name="username" required><br>
 
