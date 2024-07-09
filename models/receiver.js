@@ -14,7 +14,7 @@ const receiverSchema = new Schema({
     required: true,
     unique: true,
   },
-  password: String,
+  password: { type: String, required: true },
   resetPasswordToken: String,
   resetPasswordExpires: Date,
   countryCode : {
@@ -55,25 +55,17 @@ const receiverSchema = new Schema({
 
 receiverSchema.plugin(passportLocalMongoose);
 
-receiverSchema.methods.comparePassword = function(candidatePassword, callback) {
-  bcrypt.compare(candidatePassword, this.password, function(err, isMatch) {
-      if (err) return callback(err);
-      callback(null, isMatch);
-  });
+// Compare Passwords
+
+receiverSchema.methods.comparePassword = async function(candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.Password);
 };
 
-receiverSchema.methods.comparePassword = function(candidatePassword, callback) {
-  console.log("Candidate Password: ", candidatePassword);
-  console.log("Stored Password: ", this.password);
+// Set Password
 
-  if (!candidatePassword || !this.password) {
-      return callback(new Error("data and hash arguments required"));
-  }
-
-  bcrypt.compare(candidatePassword, this.password, function(err, isMatch) {
-      if (err) return callback(err);
-      (null, isMatch);
-  });
+receiverSchema.methods.setPassword = function(password, callback) {
+  this.password = bcrypt.hashSync(password, bcrypt.genSaltSync(8), null);
+  callback(null);
 };
 
 

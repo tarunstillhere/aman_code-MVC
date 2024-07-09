@@ -14,7 +14,6 @@ const callerSchema = new Schema({
     required: true,
     unique: true,
   },
-  password: String,
   resetPasswordToken: String,
   resetPasswordExpires: Date,
   countryCode : {
@@ -55,27 +54,24 @@ const callerSchema = new Schema({
 
 callerSchema.plugin(passportLocalMongoose);
 
-// callerSchema.methods.comparePassword = function(candidatePassword, callback) {
-//   // console.log("Candidate Password: ", candidatePassword);
-//   // console.log("Stored Password: ", this.password);
-//   bcrypt.compare(candidatePassword, this.password, function(err, isMatch) {
-//       if (err) return callback(err);
-//       callback(null, isMatch);
-//   });
-// };
 
-callerSchema.methods.comparePassword = function(candidatePassword, callback) {
-  console.log("Candidate Password: ", candidatePassword);
-  console.log("Stored Password: ", this.password);
+// Compare Passwords
 
-  if (!candidatePassword || !this.password) {
-      return callback(new Error("data and hash arguments required"));
-  }
+callerSchema.methods.comparePassword = function (candidatePassword, cb) {
+  console.log('Candidate Password:', candidatePassword); // Debugging line
+  console.log('Hashed Password:', this.password); // Debugging line
 
-  bcrypt.compare(candidatePassword, this.password, function(err, isMatch) {
-      if (err) return callback(err);
-      callback(null, isMatch);
+  bcrypt.compare(candidatePassword, this.password, function (err, isMatch) {
+    if (err) return cb(err);
+    cb(null, isMatch);
   });
+};
+
+// Set Password
+
+callerSchema.methods.setPassword = function(password, callback) {
+    this.password = bcrypt.hashSync(password, bcrypt.genSaltSync(8), null);
+    callback(null);
 };
 
 const Caller = mongoose.model("Caller", callerSchema);

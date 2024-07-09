@@ -7,9 +7,10 @@ const path = require("path");
 const bodyParser = require("body-parser");
 const Caller = require("./models/caller.js");
 const Receiver = require("./models/receiver.js");
+const User = require('./models/user');
 const OTP = require("./models/otp.js");
 const passport = require("passport");
-const LocalStrategy = require("passport-local");
+const LocalStrategy = require('passport-local').Strategy;
 // const multer = require("multer");
 // const { storage } = require("./cloudConfig.js");  // Image Purpose
 // const upload = multer({ storage });
@@ -57,30 +58,23 @@ app.use(bodyParser.json());
 app.use(session(sessionOptions));
 app.use(passport.initialize());
 app.use(passport.session());
-passport.use(new LocalStrategy(async (username, password, done) => {
-    try {
-        console.log('Authenticating user:', username);
-        let user = await Caller.findOne({ username }) || await Receiver.findOne({ username });
-        
-        if (!user) {
-            console.log('User not found');
+// Passport strategy for authentication
+passport.use(new LocalStrategy(
+    LocalStrategy._verify = async (username, password, done) => {
+        try {
+          const user = await User.findOne({ username });
+          if (!user) {
             return done(null, false, { message: 'Incorrect username.' });
-        }
-
-        const isMatch = await user.comparePassword(password);
-        console.log(isMatch);
-        if (!isMatch) {
-            console.log('Incorrect password');
+          }
+          if (!user.validPassword(password)) {
             return done(null, false, { message: 'Incorrect password.' });
+          }
+          return done(null, user);
+        } catch (err) {
+          return done(err);
         }
-
-        console.log('User authenticated successfully:', username);
-        return done(null, user);
-    } catch (err) {
-        console.error('Error during authentication:', err);
-        return done(err);
-    }
-}));
+      }
+  ));
 
 passport.serializeUser((user, done) => {
     done(null, user.id);
@@ -128,12 +122,13 @@ app.post("/listen/index/Login", passport.authenticate("local", {
     failureRedirect: "/listen/index/Login",
     failureFlash: true,
 }), (req, res) => {
-    console.log(data);
-    console.log('Redirecting to /home');
+    console.log('User authenticated:', req.user);
     res.redirect("/home");
 });
 
 app.use((err, req, res, next) => {
+    res.locals.success = req.flash("success");
+    res.locals.error = req.flash("error");
     console.error(err.stack);
     res.status(500).send('Something went wrong!');
 });
@@ -315,7 +310,8 @@ app.post('/forgotPassword', async (req, res) => {
     const user = await Caller.findOne({ email }) || await Receiver.findOne({ email });
 
     if (!user) {
-        return res.status(400).send("No account with that email found.");
+        req.flash('error', 'No account with that email found.');
+        return res.redirect('/forgotPassword');
     }
 
     // Generate a token
@@ -342,7 +338,8 @@ app.post('/forgotPassword', async (req, res) => {
             console.error('There was an error: ', err);
             return res.status(500).send('Error sending email: ' + err.message);
         } else {
-            res.status(200).send('Recovery email sent');
+            req.flash('info', 'An email has been sent to ' + user.email + ' with further instructions.');
+            res.redirect('/forgotPassword');
         }
     });
 });
@@ -365,27 +362,19 @@ app.post('/reset/:token', async (req, res) => {
                  await Receiver.findOne({ resetPasswordToken: req.params.token, resetPasswordExpires: { $gt: Date.now() } });
 
     if (!user) {
-        return res.status(400).send("Password reset token is invalid or has expired.");
+        req.flash('error', 'Password reset token is invalid or has expired.');
+        return res.redirect('back');
     }
 
     if (req.body.password !== req.body.confirmPassword) {
-        return res.status(400).send("Passwords do not match.");
-    }
-
-    const alphanumeric = /^(?=.*[a-zA-Z])(?=.*[0-9])/;
-    if (!alphanumeric.test(req.body.password) || req.body.password.length < 3) {
-        return res.status(400).send("Password must be alphanumeric and more than 3 characters long.");
-    }
-
-    // Check if the new password is the same as the old password
-    const isSamePassword = await bcrypt.compare(req.body.password, user.password);
-    if (isSamePassword) {
-        return res.status(400).send("New password must be different from the old password.");
+        req.flash('error', 'Passwords do not match.');
+        return res.redirect('back');
     }
 
     user.setPassword(req.body.password, async (err) => {
         if (err) {
-            return res.status(500).send("Error resetting password.");
+            console.error('Error setting password:', err);
+            return res.status(500).send('Error setting password: ' + err.message);
         }
 
         user.resetPasswordToken = undefined;
@@ -393,12 +382,8 @@ app.post('/reset/:token', async (req, res) => {
 
         await user.save();
 
-        req.logout((err) => {
-            if (err) {
-                return next(err);
-            }
-            res.redirect('/listen/index/Login');
-        });
+        req.flash('success', 'Success! Your password has been changed.');
+        res.redirect('/listen/index/Login');
     });
 });
 
