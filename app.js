@@ -55,25 +55,24 @@ app.use(session(sessionOptions));
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
-app.use(session(sessionOptions));
 app.use(passport.initialize());
 app.use(passport.session());
 // Passport strategy for authentication
 passport.use(new LocalStrategy(
-    LocalStrategy._verify = async (username, password, done) => {
-        try {
-          const user = await User.findOne({ username });
-          if (!user) {
-            return done(null, false, { message: 'Incorrect username.' });
-          }
-          if (!user.validPassword(password)) {
-            return done(null, false, { message: 'Incorrect password.' });
-          }
-          return done(null, user);
-        } catch (err) {
-          return done(err);
+    async (username, password, done) => {
+      try {
+        const user = await User.findOne({ username });
+        if (!user) {
+          return done(null, false, { message: 'Incorrect username.' });
         }
+        if (!user.validPassword(password)) {
+          return done(null, false, { message: 'Incorrect password.' });
+        }
+        return done(null, user);
+      } catch (err) {
+        return done(err);
       }
+    }
   ));
 
 passport.serializeUser((user, done) => {
@@ -92,7 +91,8 @@ const storeData = (req,res,next) => {
    temp = req.body;
     next();
 }
-  
+
+app.use(session(sessionOptions));
   // Set up connect-flash
 app.use(flash());
 
@@ -310,8 +310,7 @@ app.post('/forgotPassword', async (req, res) => {
     const user = await Caller.findOne({ email }) || await Receiver.findOne({ email });
 
     if (!user) {
-        req.flash('error', 'No account with that email found.');
-        return res.redirect('/forgotPassword');
+        return res.status(400).send("No account with that email found.");
     }
 
     // Generate a token
@@ -336,10 +335,8 @@ app.post('/forgotPassword', async (req, res) => {
     transporter.sendMail(mailOptions, (err, response) => {
         if (err) {
             console.error('There was an error: ', err);
-            return res.status(500).send('Error sending email: ' + err.message);
         } else {
-            req.flash('info', 'An email has been sent to ' + user.email + ' with further instructions.');
-            res.redirect('/forgotPassword');
+            res.status(200).send('Recovery email sent');
         }
     });
 });
@@ -362,13 +359,11 @@ app.post('/reset/:token', async (req, res) => {
                  await Receiver.findOne({ resetPasswordToken: req.params.token, resetPasswordExpires: { $gt: Date.now() } });
 
     if (!user) {
-        req.flash('error', 'Password reset token is invalid or has expired.');
-        return res.redirect('back');
+        return res.status(400).send("Password reset token is invalid or has expired.");
     }
 
     if (req.body.password !== req.body.confirmPassword) {
-        req.flash('error', 'Passwords do not match.');
-        return res.redirect('back');
+        return res.status(400).send("Passwords do not match.");
     }
 
     user.setPassword(req.body.password, async (err) => {
@@ -382,8 +377,9 @@ app.post('/reset/:token', async (req, res) => {
 
         await user.save();
 
-        req.flash('success', 'Success! Your password has been changed.');
-        res.redirect('/listen/index/Login');
+       // Server-side
+        res.redirect('/listen/index/Login?message=Success! Your password has been changed.');
+
     });
 });
 

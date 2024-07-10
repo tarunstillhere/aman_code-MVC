@@ -4,22 +4,25 @@ const {receiverSchema} = require("./schemaValidation");
 const ExpressError = require("./ExpressError.js");
 
 
-module.exports.validateCaller = (req, res, next) => {
-    const { error } = callerSchema.validate(req.body.caller);
-    if (error) {
-        req.flash('error', error.details[0].message);
-        return res.redirect('back');
+module.exports.validateCaller = (req,res,next) => {
+    let {error} = callerSchema.validate(req.body);
+    if(error) {
+        let errMsg = error.details.map((el) => el.message).join(",");
+        throw new ExpressError(400, errMsg);
+        console.log(errMsg);
+    }else {
+        next();
     }
-    next();
 };
-
-module.exports.validateReceiver = (req, res, next) => {
-    const { error } = receiverSchema.validate(req.body.receiver);
-    if (error) {
-        req.flash('error', error.details[0].message);
-        return res.redirect('back');
+module.exports.validateReceiver = (req,res,next) => {
+    let {error} = receiverSchema.validate(req.body);
+    if(error) {
+        let errMsg = error.details.map((el) => el.message).join(",");
+        throw new ExpressError(400, errMsg);
+        console.log(errMsg);
+    }else {
+        next();
     }
-    next();
 };
 
 // module.exports.helper = (req,res,next) => {

@@ -68,10 +68,18 @@ callerSchema.methods.comparePassword = function (candidatePassword, cb) {
 };
 
 // Set Password
-
-callerSchema.methods.setPassword = function(password, callback) {
-    this.password = bcrypt.hashSync(password, bcrypt.genSaltSync(8), null);
-    callback(null);
+callerSchema.methods.setPassword = function(password, callback = () => {}) {
+  const self = this; // Save the context
+  bcrypt.genSalt(8, function(err, salt) {
+      if (err) return callback(err);
+      
+      bcrypt.hash(password, salt, function(err, hash) {
+          if (err) return callback(err);
+          
+          self.password = hash;
+          callback(null);
+      });
+  });
 };
 
 const Caller = mongoose.model("Caller", callerSchema);
