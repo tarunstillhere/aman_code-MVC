@@ -7,13 +7,10 @@ const path = require("path");
 const bodyParser = require("body-parser");
 const Caller = require("./models/caller.js");
 const Receiver = require("./models/receiver.js");
-const User = require('./models/user');
+const User = require('./models/user'); // Assuming User is the model for callers and receivers
 const OTP = require("./models/otp.js");
 const passport = require("passport");
 const LocalStrategy = require('passport-local').Strategy;
-// const multer = require("multer");
-// const { storage } = require("./cloudConfig.js");  // Image Purpose
-// const upload = multer({ storage });
 const transporter = require('./emailConfig');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
@@ -52,50 +49,49 @@ const sessionOptions = {
 };
 
 app.use(session(sessionOptions));
-
+app.use(flash());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(passport.initialize());
 app.use(passport.session());
-// Passport strategy for authentication
+
 passport.use(new LocalStrategy(
     async (username, password, done) => {
-      try {
-        const user = await User.findOne({ username });
-        if (!user) {
-          return done(null, false, { message: 'Incorrect username.' });
+        try {
+            const user = await User.findOne({ username });
+            if (!user) {
+                return done(null, false, { message: 'Incorrect username.' });
+            }
+            const isValidPassword = await user.comparePassword(password);
+            if (!isValidPassword) {
+                return done(null, false, { message: 'Incorrect password.' });
+            }
+            return done(null, user);
+        } catch (err) {
+            return done(err);
         }
-        if (!user.validPassword(password)) {
-          return done(null, false, { message: 'Incorrect password.' });
-        }
-        return done(null, user);
-      } catch (err) {
-        return done(err);
-      }
     }
-  ));
+));
 
+// Serialize and deserialize user
 passport.serializeUser((user, done) => {
     done(null, user.id);
 });
 
 passport.deserializeUser(async (id, done) => {
     let user = await Caller.findById(id) || await Receiver.findById(id);
-    done(null, user);
+    if (user) {
+        done(null, user);
+    } else {
+        done(new Error('User not found'), null);
+    }
 });
 
-let temp = {};
-
-
-const storeData = (req,res,next) => {
-   temp = req.body;
+app.use((req, res, next) => {
+    res.locals.success = req.flash('success');
+    res.locals.error = req.flash('error');
     next();
-}
-
-app.use(session(sessionOptions));
-  // Set up connect-flash
-app.use(flash());
-
+});
 
 // Index Route
 app.get("/listen/index", async (req, res) => {
@@ -123,26 +119,18 @@ app.post("/listen/index/Login", passport.authenticate("local", {
     failureFlash: true,
 }), (req, res) => {
     console.log('User authenticated:', req.user);
+    req.flash('success', 'You have successfully logged in');
     res.redirect("/home");
 });
 
-app.use((err, req, res, next) => {
-    res.locals.success = req.flash("success");
-    res.locals.error = req.flash("error");
-    console.error(err.stack);
-    res.status(500).send('Something went wrong!');
-});
-
 // Verify Caller Email
-
 app.get("/listen/index/verifyEmailCaller", (req, res) => {
-    res.render("verifyEmailCaller.ejs", { email: req.session.email }); 
+    res.render("verifyEmailCaller.ejs", { email: req.session.email });
 });
 
 // Verify Receiver Email
-
 app.get("/listen/index/verifyEmailReceiver", (req, res) => {
-    res.render("verifyEmailReceiver.ejs", { email: req.session.email }); 
+    res.render("verifyEmailReceiver.ejs", { email: req.session.email });
 });
 
 // Submit Caller
@@ -151,8 +139,7 @@ app.post('/listen/index/submitCall', validateCaller, async (req, res) => {
     console.log(newCaller);
 
     try {
-        // Send OTP
-        const otp = uuidv4().split('-')[0]; // Generate a simple OTP
+        const otp = uuidv4().split('-')[0];
         await OTP.create({ email: req.body.caller.email, otp });
 
         const mailOptions = {
@@ -170,7 +157,7 @@ app.post('/listen/index/submitCall', validateCaller, async (req, res) => {
 
             console.log("Email sent:", info.response);
             req.session.email = req.body.caller.email;
-            req.session.tempCaller = req.body.caller; // Store caller data in session
+            req.session.tempCaller = req.body.caller;
             return res.redirect("/listen/index/verifyEmailCaller");
         });
 
@@ -181,37 +168,37 @@ app.post('/listen/index/submitCall', validateCaller, async (req, res) => {
     }
 });
 
-
 // Verify Caller Email
 app.post("/listen/index/verifyEmailCaller", async (req, res) => {
     const { email, otp } = req.body;
     const otpRecord = await OTP.findOne({ email, otp });
 
     if (otpRecord && moment().isBefore(moment(otpRecord.createdAt).add(5, 'minutes'))) {
-        // OTP is valid and not expired
-        await OTP.deleteOne({ email, otp }); // Remove the used OTP
-        let user = req.session.tempCaller; // Retrieve caller data from session
-        req.session.tempCaller = null; // Clear the session variable
+        await OTP.deleteOne({ email, otp });
+        let user = req.session.tempCaller;
+        req.session.tempCaller = null;
         if (user && user.password) {
-            let registeredCaller = await Caller.register(user, user.password);
-            res.send("Email verified successfully!");
+            let registeredUser = new Caller(user);
+            registeredUser.password = await bcrypt.hash(user.password, 12);
+            await registeredUser.save();
+            req.flash('success', 'Caller registered successfully');
+            return res.redirect("/listen/index/Login");
         } else {
-            res.status(500).send("Caller data is missing or incomplete.");
+            return res.status(400).send("Invalid session data");
         }
     } else {
-        // OTP is invalid or expired
-        res.status(400).send("Invalid or expired OTP");
+        req.flash('error', 'Invalid or expired OTP');
+        return res.redirect("/listen/index/verifyEmailCaller");
     }
 });
 
-
 // Submit Receiver
-app.post('/listen/index/submitRec', validateReceiver, async (req, res) => {
+app.post('/listen/index/submitReceive', validateReceiver, async (req, res) => {
     let newReceiver = new Receiver(req.body.receiver);
+    console.log(newReceiver);
 
     try {
-        // Send OTP
-        const otp = uuidv4().split('-')[0]; // Generate a simple OTP
+        const otp = uuidv4().split('-')[0];
         await OTP.create({ email: req.body.receiver.email, otp });
 
         const mailOptions = {
@@ -229,7 +216,7 @@ app.post('/listen/index/submitRec', validateReceiver, async (req, res) => {
 
             console.log("Email sent:", info.response);
             req.session.email = req.body.receiver.email;
-            req.session.tempReceiver = req.body.receiver; // Store receiver data in session
+            req.session.tempReceiver = req.body.receiver;
             return res.redirect("/listen/index/verifyEmailReceiver");
         });
 
@@ -246,19 +233,21 @@ app.post("/listen/index/verifyEmailReceiver", async (req, res) => {
     const otpRecord = await OTP.findOne({ email, otp });
 
     if (otpRecord && moment().isBefore(moment(otpRecord.createdAt).add(5, 'minutes'))) {
-        // OTP is valid and not expired
-        await OTP.deleteOne({ email, otp }); // Remove the used OTP
-        let user = req.session.tempReceiver; // Retrieve receiver data from session
-        req.session.tempReceiver = null; // Clear the session variable
+        await OTP.deleteOne({ email, otp });
+        let user = req.session.tempReceiver;
+        req.session.tempReceiver = null;
         if (user && user.password) {
-            let registeredReceiver = await Receiver.register(user, user.password);
-            res.send("Email verified successfully!");
+            let registeredUser = new Receiver(user);
+            registeredUser.password = await bcrypt.hash(user.password, 12);
+            await registeredUser.save();
+            req.flash('success', 'Receiver registered successfully');
+            return res.redirect("/listen/index/Login");
         } else {
-            res.status(500).send("Receiver data is missing or incomplete.");
+            return res.status(400).send("Invalid session data");
         }
     } else {
-        // OTP is invalid or expired
-        res.status(400).send("Invalid or expired OTP");
+        req.flash('error', 'Invalid or expired OTP');
+        return res.redirect("/listen/index/verifyEmailReceiver");
     }
 });
 
@@ -391,9 +380,9 @@ app.get("/home", (req,res) => {
     res.send("Welcome to Listen.com !");
 });
 
-// app.get("/wrongPassword", (req, res) => {
-//     res.send("Wrong Password");
-// });
+app.get("/listen", (req,res) => {
+    res.send("Landing Page soon...! PLEASE go to the route 'listen/index'");
+});
 
 app.listen(8080, () => {
     console.log("app is listening to port 8080");
@@ -402,5 +391,4 @@ app.listen(8080, () => {
 app.use((err,req,res,next)=> {
     let {statusCode = 500, message= "Something Went Wrong !"} = err;
     res.status(statusCode).render("error.ejs", {message});
-    // res.status(statusCode).send(message);
 });

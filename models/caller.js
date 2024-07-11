@@ -14,6 +14,7 @@ const callerSchema = new Schema({
     required: true,
     unique: true,
   },
+  password: { type: String, required: true },
   resetPasswordToken: String,
   resetPasswordExpires: Date,
   countryCode : {

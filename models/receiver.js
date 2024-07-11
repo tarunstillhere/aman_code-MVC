@@ -57,16 +57,31 @@ receiverSchema.plugin(passportLocalMongoose);
 
 // Compare Passwords
 
-receiverSchema.methods.comparePassword = async function(candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.Password);
+receiverSchema.methods.comparePassword = function (candidatePassword, cb) {
+  console.log('Candidate Password:', candidatePassword); // Debugging line
+  console.log('Hashed Password:', this.password); // Debugging line
+
+  bcrypt.compare(candidatePassword, this.password, function (err, isMatch) {
+    if (err) return cb(err);
+    cb(null, isMatch);
+  });
 };
 
 // Set Password
-
-receiverSchema.methods.setPassword = function(password, callback) {
-  this.password = bcrypt.hashSync(password, bcrypt.genSaltSync(8), null);
-  callback(null);
+receiverSchema.methods.setPassword = function(password, callback = () => {}) {
+  const self = this; // Save the context
+  bcrypt.genSalt(8, function(err, salt) {
+      if (err) return callback(err);
+      
+      bcrypt.hash(password, salt, function(err, hash) {
+          if (err) return callback(err);
+          
+          self.password = hash;
+          callback(null);
+      });
+  });
 };
+
 
 
 const Receiver = mongoose.model("Receiver", receiverSchema);
