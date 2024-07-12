@@ -1,10 +1,11 @@
+const { object, string, required, boolean } = require("joi");
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const passportLocalMongoose = require("passport-local-mongoose");
 const bcrypt = require('bcrypt');
 
-const userSchema = new mongoose.Schema({
-  username: {
+const userSchema = new Schema({
+    username: {
     type: String,
     required: true,
   },
@@ -36,10 +37,6 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  // imgURL: {
-  //   type: String,
-  //   required: true,  // We are commenting IMAGE UPLOAD Option for testing...
-  // },
   lastActive: {
     type: Date,
     default: Date.now,
@@ -49,28 +46,27 @@ const userSchema = new mongoose.Schema({
     default: Date.now,
   },
   language: [String],
-});
+    // status: {
+  //   type: String,
+  //   enum: ["active", "inactive", "in-call", "busy", "offline", "blocked"],
+  //   default: "offline",
+  // },
+}); 
+
 
 userSchema.plugin(passportLocalMongoose);
 
-// Hash the password before saving
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-      return next();
-  }
-  try {
-      const salt = await bcrypt.genSalt(10);
-      this.password = await bcrypt.hash(this.password, salt);
-      next();
-  } catch (err) {
-      next(err);
-  }
-});
 
+// Compare Passwords
 
-// Method to compare password
-userSchema.methods.comparePassword = function(candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password);
+userSchema.methods.comparePassword = function (candidatePassword, cb) {
+  console.log('Candidate Password:', candidatePassword); // Debugging line
+  console.log('Hashed Password:', this.password); // Debugging line
+
+  bcrypt.compare(candidatePassword, this.password, function (err, isMatch) {
+    if (err) return cb(err);
+    cb(null, isMatch);
+  });
 };
 
 // Set Password
@@ -78,6 +74,7 @@ userSchema.methods.setPassword = function(password, callback = () => {}) {
   const self = this; // Save the context
   bcrypt.genSalt(8, function(err, salt) {
       if (err) return callback(err);
+      
       bcrypt.hash(password, salt, function(err, hash) {
           if (err) return callback(err);
           
@@ -87,6 +84,6 @@ userSchema.methods.setPassword = function(password, callback = () => {}) {
   });
 };
 
-const User = mongoose.model('User', userSchema);
+const User = mongoose.model("User", userSchema);
 
 module.exports = User;
