@@ -16,7 +16,7 @@ module.exports.userSchema = Joi.object({
         dob: Joi.date().max('1-1-2011').iso(),
         address : Joi.string(),
         language : Joi.string().required(),
-        // status : Joi.string().required()
+        status : Joi.string().required(),
     }).required()
     
 });

@@ -46,11 +46,11 @@ const userSchema = new Schema({
     default: Date.now,
   },
   language: [String],
-    // status: {
-  //   type: String,
-  //   enum: ["active", "inactive", "in-call", "busy", "offline", "blocked"],
-  //   default: "offline",
-  // },
+  status: {
+    type: String,
+    enum: ["caller", "receiver", "both"],
+    default: "both",
+  },
 }); 
 
 
