@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create User</title>
+</head>
+<body>
+    <h1>Create New User</h1>
+    <form action="/listen/index/submit" method="post" enctype="multipart/form-data">
+        <label for="username">Username:</label>
+        <input type="text" id="username" placeholder="small letters only" name="user[username]" required><br>
+
+            <label for="email">Email:</label>
+            <input type="email" id="email" placeholder="for eg - joe@gmail.com" name="user[email]" required><br>
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" placeholder="Name@123" name="user[password]" required><br>
+
+        <label for="country_code">Country Code:</label>
+        <select name="user[countryCode]" id="country_code" required>
+        </select>
+
+
+        <label for="phoneNumber">Phone Number:</label>
+        
+        <input type="text" id="phoneNumber" placeholder="Valid Phone Number" name="user[phoneNumber]" required><br>
+
+        <label for="gender">Gender:</label>
+        <select id="gender" name="user[gender]">
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+          <option value="Others">Others</option>
+        </select><br>
+
+        <label for="dob">Date of Birth:</label>
+        <input type="date" id="dob" name="user[dob]" required><br>
+
+        <label for="address">Address:</label>
+        <input type="text" id="address" name="user[address]" required><br>
+
+        <label for="language">Language:</label>
+        <input type="text" id="language" name="user[language]"><br>
+
+        <!-- <label for="status">Status:</label>
+        <select id="status" name="caller[status]">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="in-call">In-call</option>
+            <option value="busy">Busy</option>
+            <option value="offline" selected>Offline</option>
+            <option value="blocked">Blocked</option>
+        </select><br> -->
+
+        <button  type="submit">Create User</button>
+    </form>
+    <script>
+
+        let inp = document.getElementById("username");
+        inp.addEventListener("input", (e) => {
+            if (inp.value.charAt(inp.value.length - 1) >= 'A' && inp.value.charAt(inp.value.length - 1) <= 'Z') {
+                inp.value = inp.value.toLowerCase();
+            }
+        })
+
+
+        document.addEventListener("DOMContentLoaded", () => {
+            (async () => {
+                const selectDrop = document.querySelector("#country_code");
+
+                try {
+                    let response = await fetch(`https://restcountries.com/v3.1/all`);
+
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok' + response.statusText);
+                    }
+
+                    let data = await response.json();
+                    // console.log(data);
+
+                    // Populate the select dropdown with country codes
+                    data.forEach(country => {
+                        let option = document.createElement('option');
+                        option.value = country.idd.root + (country.idd.suffixes ? country.idd.suffixes[0] : '');
+                        option.text = `${country.name.common} (${option.value})`;
+                        selectDrop.appendChild(option);
+                    });
+
+                } catch (error) {
+                    console.log(error);
+                    console.error("Fetching failed");
+                }
+            })();
+        });
+
+
+    </script>
+</body>
+</html>
+
