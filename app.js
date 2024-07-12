@@ -5,9 +5,7 @@ const session = require('express-session');
 const flash = require('connect-flash');
 const path = require("path");
 const bodyParser = require("body-parser");
-const Caller = require("./models/caller.js");
-const Receiver = require("./models/receiver.js");
-const User = require('./models/user'); // Assuming User is the model for callers and receivers
+const User = require("./models/user.js"); // Assuming User is the model for callers and receivers
 const OTP = require("./models/otp.js");
 const passport = require("passport");
 const LocalStrategy = require('passport-local').Strategy;
@@ -15,7 +13,8 @@ const transporter = require('./emailConfig');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
-const { callerSchema, receiverSchema } = require("./schemaValidation");
+const { userSchema } = require("./schemaValidation.js");
+const { validateUser } = require("./middleware.js");
 
 let MONGO_URL = "mongodb://127.0.0.1:27017/testing";
 
@@ -32,7 +31,6 @@ async function main() {
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
-const { validateCaller, validateReceiver } = require("./middleware.js");
 
 // Add moment.js for handling time
 const moment = require("moment");
@@ -58,16 +56,24 @@ app.use(passport.session());
 passport.use(new LocalStrategy(
     async (username, password, done) => {
         try {
+            console.log(`Attempting to authenticate user: ${username}`);
             const user = await User.findOne({ username });
+            console.log("user is : ",user);
             if (!user) {
+                console.log('User not found');
                 return done(null, false, { message: 'Incorrect username.' });
             }
-            const isValidPassword = await user.comparePassword(password);
+            const isValidPassword = await bcrypt.compare(password, user.password);
+            console.log("isValidPassword is : ", isValidPassword);
+            console.log("user.password is : ",user.password);
             if (!isValidPassword) {
+                console.log('Invalid password');
                 return done(null, false, { message: 'Incorrect password.' });
             }
+            console.log('User authenticated successfully');
             return done(null, user);
         } catch (err) {
+            console.error('Error during authentication', err);
             return done(err);
         }
     }
@@ -79,7 +85,7 @@ passport.serializeUser((user, done) => {
 });
 
 passport.deserializeUser(async (id, done) => {
-    let user = await Caller.findById(id) || await Receiver.findById(id);
+    let user = await User.findById(id);
     if (user) {
         done(null, user);
     } else {
@@ -98,14 +104,9 @@ app.get("/listen/index", async (req, res) => {
     res.render("index.ejs");
 });
 
-// SignUp as a Caller
-app.get("/listen/index/callerForm", (req, res) => {
-    res.render("caller.ejs");
-});
-
-// SingUp as a Receiver
-app.get("/listen/index/receiverForm", (req, res) => {
-    res.render("receiver.ejs");
+// SignUp Route
+app.get("/listen/index/register", (req, res) => {
+    res.render("user.ejs");
 });
 
 // Login Route
@@ -123,28 +124,23 @@ app.post("/listen/index/Login", passport.authenticate("local", {
     res.redirect("/home");
 });
 
-// Verify Caller Email
-app.get("/listen/index/verifyEmailCaller", (req, res) => {
-    res.render("verifyEmailCaller.ejs", { email: req.session.email });
+// Get Verify Email
+app.get("/listen/index/verifyEmail", (req, res) => {
+    res.render("verifyEmail.ejs", { email: req.session.email });
 });
 
-// Verify Receiver Email
-app.get("/listen/index/verifyEmailReceiver", (req, res) => {
-    res.render("verifyEmailReceiver.ejs", { email: req.session.email });
-});
-
-// Submit Caller
-app.post('/listen/index/submitCall', validateCaller, async (req, res) => {
-    let newCaller = new Caller(req.body.caller);
-    console.log(newCaller);
+// Submit Register Form
+app.post('/listen/index/submit', validateUser, async (req, res) => {
+    let newUser = new User(req.body.user);
+    console.log(newUser);
 
     try {
         const otp = uuidv4().split('-')[0];
-        await OTP.create({ email: req.body.caller.email, otp });
+        await OTP.create({ email: req.body.user.email, otp });
 
         const mailOptions = {
             from: 'tarunchauhan01221@gmail.com',
-            to: req.body.caller.email,
+            to: req.body.user.email,
             subject: 'Email Verification Code',
             text: `Your verification code is ${otp}`
         };
@@ -156,101 +152,41 @@ app.post('/listen/index/submitCall', validateCaller, async (req, res) => {
             }
 
             console.log("Email sent:", info.response);
-            req.session.email = req.body.caller.email;
-            req.session.tempCaller = req.body.caller;
-            return res.redirect("/listen/index/verifyEmailCaller");
+            req.session.email = req.body.user.email;
+            req.session.tempUser = req.body.user;
+            return res.redirect("/listen/index/verifyEmail");
         });
 
         console.log("Registered successfully");
     } catch (error) {
-        console.error("Error saving caller:", error);
-        res.status(500).send("Error saving caller: " + error.message);
+        console.error("Error saving user:", error);
+        res.status(500).send("Error saving user: " + error.message);
     }
 });
 
-// Verify Caller Email
-app.post("/listen/index/verifyEmailCaller", async (req, res) => {
+// Post Verify Email
+app.post("/listen/index/verifyEmail", async (req, res) => {
     const { email, otp } = req.body;
     const otpRecord = await OTP.findOne({ email, otp });
 
     if (otpRecord && moment().isBefore(moment(otpRecord.createdAt).add(5, 'minutes'))) {
         await OTP.deleteOne({ email, otp });
-        let user = req.session.tempCaller;
-        req.session.tempCaller = null;
+        let user = req.session.tempUser;
+        req.session.tempUser = null;
         if (user && user.password) {
-            let registeredUser = new Caller(user);
+            let registeredUser = new User(user);
             registeredUser.password = await bcrypt.hash(user.password, 12);
             await registeredUser.save();
-            req.flash('success', 'Caller registered successfully');
+            req.flash('success', 'User registered successfully');
             return res.redirect("/listen/index/Login");
         } else {
             return res.status(400).send("Invalid session data");
         }
     } else {
         req.flash('error', 'Invalid or expired OTP');
-        return res.redirect("/listen/index/verifyEmailCaller");
+        return res.redirect("/listen/index/verifyEmail");
     }
 });
-
-// Submit Receiver
-app.post('/listen/index/submitReceive', validateReceiver, async (req, res) => {
-    let newReceiver = new Receiver(req.body.receiver);
-    console.log(newReceiver);
-
-    try {
-        const otp = uuidv4().split('-')[0];
-        await OTP.create({ email: req.body.receiver.email, otp });
-
-        const mailOptions = {
-            from: 'tarunchauhan01221@gmail.com',
-            to: req.body.receiver.email,
-            subject: 'Email Verification Code',
-            text: `Your verification code is ${otp}`
-        };
-
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                console.error("Error sending email:", error);
-                return res.status(500).send("Error sending email: " + error.message);
-            }
-
-            console.log("Email sent:", info.response);
-            req.session.email = req.body.receiver.email;
-            req.session.tempReceiver = req.body.receiver;
-            return res.redirect("/listen/index/verifyEmailReceiver");
-        });
-
-        console.log("Registered successfully");
-    } catch (error) {
-        console.error("Error saving receiver:", error);
-        res.status(500).send("Error saving receiver: " + error.message);
-    }
-});
-
-// Verify Receiver Email
-app.post("/listen/index/verifyEmailReceiver", async (req, res) => {
-    const { email, otp } = req.body;
-    const otpRecord = await OTP.findOne({ email, otp });
-
-    if (otpRecord && moment().isBefore(moment(otpRecord.createdAt).add(5, 'minutes'))) {
-        await OTP.deleteOne({ email, otp });
-        let user = req.session.tempReceiver;
-        req.session.tempReceiver = null;
-        if (user && user.password) {
-            let registeredUser = new Receiver(user);
-            registeredUser.password = await bcrypt.hash(user.password, 12);
-            await registeredUser.save();
-            req.flash('success', 'Receiver registered successfully');
-            return res.redirect("/listen/index/Login");
-        } else {
-            return res.status(400).send("Invalid session data");
-        }
-    } else {
-        req.flash('error', 'Invalid or expired OTP');
-        return res.redirect("/listen/index/verifyEmailReceiver");
-    }
-});
-
 
 // Add a new route for resending OTP
 app.post("/resendOtp", async (req, res) => {
@@ -296,7 +232,7 @@ app.get('/forgotPassword', (req, res) => {
 // Route to handle the password reset request
 app.post('/forgotPassword', async (req, res) => {
     const { email } = req.body;
-    const user = await Caller.findOne({ email }) || await Receiver.findOne({ email });
+    const user = await User.findOne({ email });
 
     if (!user) {
         return res.status(400).send("No account with that email found.");
@@ -332,8 +268,7 @@ app.post('/forgotPassword', async (req, res) => {
 
 // Route to render the password reset form
 app.get('/reset/:token', async (req, res) => {
-    const user = await Caller.findOne({ resetPasswordToken: req.params.token, resetPasswordExpires: { $gt: Date.now() } }) ||
-                 await Receiver.findOne({ resetPasswordToken: req.params.token, resetPasswordExpires: { $gt: Date.now() } });
+    const user = await User.findOne({ resetPasswordToken: req.params.token, resetPasswordExpires: { $gt: Date.now() } });
 
     if (!user) {
         return res.status(400).send("Password reset token is invalid or has expired.");
@@ -344,8 +279,7 @@ app.get('/reset/:token', async (req, res) => {
 
 // Route to handle the password reset form submission
 app.post('/reset/:token', async (req, res) => {
-    const user = await Caller.findOne({ resetPasswordToken: req.params.token, resetPasswordExpires: { $gt: Date.now() } }) ||
-                 await Receiver.findOne({ resetPasswordToken: req.params.token, resetPasswordExpires: { $gt: Date.now() } });
+    const user = await User.findOne({ resetPasswordToken: req.params.token, resetPasswordExpires: { $gt: Date.now() } });
 
     if (!user) {
         return res.status(400).send("Password reset token is invalid or has expired.");
