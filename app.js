@@ -130,7 +130,7 @@ app.get("/listen/index/verifyEmail", (req, res) => {
 });
 
 // Submit Register Form
-app.post("/listen/index/submit", validateUser, async (req, res) => {
+app.post("/listen/index/submit",validateUser, async (req, res) => {
     let newUser = new User(req.body.user);
     console.log(newUser);
 
