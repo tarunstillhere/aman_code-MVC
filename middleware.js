@@ -1,33 +1,30 @@
 const { valid } = require("joi");
-const {userSchema} = require("./schemaValidation");
+const {userSchema} = require("./schemaValidation.js");
 const ExpressError = require("./ExpressError.js");
-const User = require("./models/user.js");
+const User = require("./models/listen.js");
 
 
 module.exports.validateUser = (req,res,next) => {
-    let {error} = userSchema.validate(req.body);
+    console.log("Request is coming");
+    let {error} = userSchema.validate(req.body.user);
     if(error) {
         let errMsg = error.details.map((el) => el.message).join(",");
-        throw new ExpressError(400, errMsg);
         console.log(errMsg);
+        throw new ExpressError(400, errMsg);
     }else {
         next();
     }
 };
 
-// // Middleware to check if user already exists
-// module.exports.checkUserExists = async (req, res, next) => {
-//     try {
-//         const { email, username } = req.body.caller || req.body.receiver;
-//         const user = await User.findOne({ $or: [{ email }, { username }] });
-
-//         if (user) {
-//             req.flash('error', 'Username or email is already taken. Please choose a different one.');
-//             return res.redirect('back'); // Redirect back to the registration form
-//         }
-
-//         next();
-//     } catch (err) {
-//         next(err);
-//     }
-// }
+// {
+//     "user[username]": "achang",
+//     "user[email]": "achang@example.com",
+//     "user[password]": "Sqvph7Kn",
+//     "user[countryCode]": "+91",
+//     "user[phoneNumber]": "9489096147",
+//     "user[gender]": "Female",
+//     "user[dob]": "1956-04-17",
+//     "user[address]": "4759 William Haven Apt. 194\nWest Corey, TX 43780",
+//     "user[language]": "Occitan",
+//     "user[status]": "Both"
+//   }

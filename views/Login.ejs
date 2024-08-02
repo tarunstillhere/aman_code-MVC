@@ -34,6 +34,29 @@
         <button type="submit">Log in</button>
         <button><a href="/forgotPassword" style="text-decoration: none; color: black;">Forgot Password ?</a></button>
     </form>
+    <!-- <script>
+        function saveData() {
+            let email, password;
+            email=document.getElementById("email").value;
+            password=document.getElementById("password").value;
+
+            let user_record=new Array();
+            user_record=JSON.parse(localStorage.getItem("users"))?JSON.parse(localStorage.getItem("users")):[]
+            if(user_record.some((v) => {
+                return v.email==email && v.password==password;
+            })) {
+                alert("Login Successfully");
+                let current_user=user_record.filter((v) => {
+                    return v.email==email && v.password ==password;
+                })[0]
+
+                localStorage.setItem("name", current_user.name);
+                localStorage.setItem("password", current_user.password);
+            } else {
+                alert("Login Fail");
+            }
+        }
+    </script> -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 </body>
 </html>

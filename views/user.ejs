@@ -51,9 +51,32 @@
             <option value="both" selected>Both</option>
         </select><br>
 
-        <button  type="submit">Create User</button>
+        <button type="submit">Create User</button>
     </form>
     <script>
+
+        // function saveData() {
+        //     let username, email, password;
+        //     username=document.getElementById("username").value;
+        //     email=document.getElementById("email").value;
+        //     password=document.getElementById("password").value;
+            
+        //     let user_records=new Array();
+        //     user_records=JSON.parse(localStorage.getItem("users"))?JSON.parse(localStorage.getItem("users")):[]
+        //     if(user_records.some((v) => {
+        //         return v.email == email;
+        //     })) {
+        //         alert("Duplicate Key");
+        //     } else {
+        //         user_records.push({
+        //             "username" : username,
+        //             "email" : email,
+        //             "password" : password
+        //         })
+        //         localStorage.setItem("users", JSON.stringify(user_records));
+        //     }
+
+        // }
 
         let inp = document.getElementById("username");
         inp.addEventListener("input", (e) => {
