@@ -106,7 +106,6 @@ app.get("/listen/index", async (req, res) => {
 
 // SignUp Route
 app.get("/listen/index/register", (req, res) => {
-    console.log("Req is coming !");
     res.render("user.ejs");
 });
 
@@ -133,6 +132,7 @@ app.get("/listen/index/verifyEmail", (req, res) => {
 
 // Submit Register Form
 app.post("/listen/index/submit",validateUser, async (req, res) => {
+    
     console.log("Request is coming");
     let newUser = new User(req.body.user);
     console.log(newUser);

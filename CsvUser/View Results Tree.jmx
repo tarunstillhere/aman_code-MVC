@@ -19,9 +19,9 @@
       </ThreadGroup>
       <hashTree>
         <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="HTTP Request">
-          <stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>
+          <stringProp name="HTTPSampler.domain">localhost</stringProp>
           <stringProp name="HTTPSampler.port">8080</stringProp>
-          <stringProp name="HTTPSampler.path">localhost:8080/listen/index/submit?</stringProp>
+          <stringProp name="HTTPSampler.path">/listen/index/submit</stringProp>
           <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
           <stringProp name="HTTPSampler.method">POST</stringProp>
           <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
@@ -31,23 +31,47 @@
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
                 <stringProp name="Argument.value">{&#xd;
-    &quot;username&quot;: &quot;${username}&quot;,&#xd;
-    &quot;email&quot;: &quot;${email}&quot;,&#xd;
-    &quot;password&quot;: &quot;${password}&quot;,&#xd;
-    &quot;countryCode&quot;: &quot;${countryCode}&quot;,&#xd;
-    &quot;phoneNumber&quot;: &quot;${phoneNumber}&quot;,&#xd;
-    &quot;gender&quot;: &quot;${gender}&quot;,&#xd;
-    &quot;dob&quot;: &quot;${dob}&quot;,&#xd;
-    &quot;address&quot;: &quot;${address}&quot;,&#xd;
-    &quot;language&quot;: &quot;${language}&quot;,&#xd;
-    &quot;status&quot;: &quot;${status}&quot;&#xd;
-}</stringProp>
+    &quot;user&quot;: {&#xd;
+        &quot;username&quot;: &quot;username&quot;,&#xd;
+        &quot;email&quot;: &quot;email&quot;,&#xd;
+        &quot;password&quot;: &quot;password&quot;,&#xd;
+        &quot;countryCode&quot;: &quot;countryCode&quot;,&#xd;
+        &quot;phoneNumber&quot;: &quot;phoneNumber&quot;,&#xd;
+        &quot;gender&quot;: &quot;gender&quot;,&#xd;
+        &quot;dob&quot;: &quot;dob&quot;,&#xd;
+        &quot;address&quot;: &quot;address&quot;,&#xd;
+        &quot;language&quot;: &quot;language&quot;,&#xd;
+        &quot;status&quot;: &quot;status&quot;&#xd;
+    }&#xd;
+}&#xd;
+</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
           </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="content-type">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Content-Type</stringProp>
+                <stringProp name="Header.value">application/json</stringProp>
+              </elementProp>
+            </collectionProp>
+          </HeaderManager>
+          <hashTree/>
+          <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="CSV Data Set Config">
+            <stringProp name="delimiter">,</stringProp>
+            <stringProp name="fileEncoding"></stringProp>
+            <stringProp name="filename">/Users/tarunchauhan/Documents/aman_code-MVC/CsvUser/user.csv</stringProp>
+            <boolProp name="ignoreFirstLine">false</boolProp>
+            <boolProp name="quotedData">false</boolProp>
+            <boolProp name="recycle">true</boolProp>
+            <stringProp name="shareMode">shareMode.all</stringProp>
+            <boolProp name="stopThread">false</boolProp>
+            <stringProp name="variableNames">username,email,password,countryCode,phoneNumber,gender,dob,address,language,status</stringProp>
+          </CSVDataSet>
+          <hashTree/>
           <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree">
             <boolProp name="ResultCollector.error_logging">false</boolProp>
             <objProp>
@@ -84,33 +108,6 @@
             </objProp>
             <stringProp name="filename"></stringProp>
           </ResultCollector>
-          <hashTree/>
-          <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="CSV Data Set Config">
-            <stringProp name="delimiter">,</stringProp>
-            <stringProp name="fileEncoding"></stringProp>
-            <stringProp name="filename">/Users/tarunchauhan/Documents/aman_code-MVC/CsvUser/users.csv</stringProp>
-            <boolProp name="ignoreFirstLine">false</boolProp>
-            <boolProp name="quotedData">false</boolProp>
-            <boolProp name="recycle">true</boolProp>
-            <stringProp name="shareMode">shareMode.all</stringProp>
-            <boolProp name="stopThread">false</boolProp>
-            <stringProp name="variableNames"></stringProp>
-          </CSVDataSet>
-          <hashTree/>
-          <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="JSON Extractor">
-            <stringProp name="JSONPostProcessor.referenceNames">username</stringProp>
-            <stringProp name="JSONPostProcessor.jsonPathExprs">.$username</stringProp>
-            <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
-          </JSONPostProcessor>
-          <hashTree/>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
-            <collectionProp name="HeaderManager.headers">
-              <elementProp name="" elementType="Header">
-                <stringProp name="Header.name">Content-Type</stringProp>
-                <stringProp name="Header.value">application/json</stringProp>
-              </elementProp>
-            </collectionProp>
-          </HeaderManager>
           <hashTree/>
         </hashTree>
       </hashTree>
