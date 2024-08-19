@@ -13,8 +13,10 @@ const transporter = require('./emailConfig.js');
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
+const cookieParser = require("cookie-parser");
 const { userSchema } = require("./schemaValidation.js");
-const { validateUser } = require("./middleware.js");
+// const { validateUser } = require("./middleware.js");
+const jwt = require("jsonwebtoken");
 
 let MONGO_URL = "mongodb://127.0.0.1:27017/testing";
 
@@ -31,6 +33,7 @@ async function main() {
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 app.use(express.json());
+app.use(cookieParser());
 
 // Add moment.js for handling time
 const moment = require("moment");
@@ -118,7 +121,54 @@ app.get("/listen/index/Login", (req, res) => {
 app.post("/listen/index/Login", passport.authenticate("local", {
     failureRedirect: "/listen/index/Login",
     failureFlash: true,
-}), (req, res) => {
+}),async (req, res) => {
+    try {
+        // get the data from frontend
+        const { username, password } = req.body;
+        
+        // validation 
+        if (!( username && password )) {
+            res.status(400).send("Something went wrong !");
+        };
+
+        // find user in DB
+        const user = await User.findOne({ username });
+
+        // Check if user is exists
+
+        if (!(user)) {
+            res.status(400).send("User name with this doesn't exists");
+        }
+
+        // Match the Password 
+
+        if (user && (await bcrypt.compare(password, user.password))) {
+            const token = jwt.sign(
+                {id : user._id},
+                "shhhh", // process.env.JWTSECRET
+                {
+                    expiresIn : "1m",
+                }
+            );
+
+            user.token = token;
+            user.password = undefined;
+
+            // send a token in user cookie
+            const options = {
+                expires : new Date(Date.now()) + 1 * 24 * 60 * 60 * 1000,
+                httpOnly : true
+            };
+            res.status(200).cookie("token", token, options).json({
+                success : true,
+                token,
+                user
+            })
+        }
+
+    } catch (error) {
+        console.log(error);
+    }
     console.log('User authenticated:', req.user);
     req.flash('success', 'You have successfully logged in');
     res.redirect("/home");
@@ -131,13 +181,53 @@ app.get("/listen/index/verifyEmail", (req, res) => {
 });
 
 // Submit Register Form
-app.post("/listen/index/submit",validateUser, async (req, res) => {
-    
+app.post("/listen/index/submit", async (req, res) => {
     console.log("Request is coming");
-    let newUser = new User(req.body.user);
-    console.log(newUser);
 
     try {
+        // Get all the data from body
+        const { username, email, password, countryCode, phoneNumber, gender, dob, address } = req.body.user;
+
+        // Validation Check: All the data should exist
+        if (!(username && email && password && countryCode && phoneNumber && gender && dob && address)) {
+            return res.status(400).send("All the fields are required");
+        }
+
+        // Check if the user already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            return res.status(400).send("The User already exists with this email.");
+        }
+
+        // Encrypt the password
+        const MyEncPassword = await bcrypt.hash(password, 10);
+
+        // Save the user in DB
+        const user = await User.create({
+            username,
+            email,
+            password: MyEncPassword,
+            countryCode,
+            phoneNumber,
+            gender,
+            dob,
+            address
+        });
+
+        // Generate a token for the user and send it
+        const token = jwt.sign(
+            { id: user._id, email },
+            "shhhh", // process.env.JWT_SECRET
+            {
+                expiresIn: "1m",
+            }
+        );
+
+        user.token = token;
+        user.password = undefined;
+
+        
+
         const otp = uuidv4().split('-')[0];
         await OTP.create({ email: req.body.user.email, otp });
 
@@ -159,13 +249,20 @@ app.post("/listen/index/submit",validateUser, async (req, res) => {
             req.session.tempUser = req.body.user;
             return res.redirect("/listen/index/verifyEmail");
         });
-    
+
         console.log("Registered successfully");
+        res.status(200).json({
+            username: user.username,
+            email: user.email,
+            token: user.token
+        });
+        
     } catch (error) {
         console.error("Error saving user:", error);
         res.status(500).send("Error saving user: " + error.message);
     }
 });
+
 
 // Post Verify Email
 app.post("/listen/index/verifyEmail", async (req, res) => {

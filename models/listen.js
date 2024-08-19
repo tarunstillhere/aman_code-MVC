@@ -51,6 +51,9 @@ const userSchema = new Schema({
     enum: ["caller", "receiver", "both"],
     default: "both",
   },
+  token : {
+    type : String,
+  }
 }); 
 
 
